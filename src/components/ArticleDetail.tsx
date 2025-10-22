@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RSSItem, AIPrompt } from '../types';
-import { ExternalLink, Bot, Loader2, Star } from 'lucide-react';
+import { ExternalLink, Bot, Loader2 } from 'lucide-react';
 import { sanitizeHTML } from '../utils/htmlSanitizer';
 import { fetchPreviewContent, PreviewContent } from '../services/previewService';
 
@@ -16,8 +16,7 @@ const ArticleDetail: React.FC<ArticleDetailProps> = ({
   item,
   onGenerateSummary,
   generatingSummary,
-  currentPrompt,
-  onToggleFavorite
+  currentPrompt
 }) => {
   const [previewContent, setPreviewContent] = useState<PreviewContent | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);

@@ -1,6 +1,5 @@
 import React from 'react';
 import { RSSItem } from '../types';
-import { ExternalLink, Bot, Star } from 'lucide-react';
 import { sanitizeHTML } from '../utils/htmlSanitizer';
 
 interface FeedListProps {
@@ -14,7 +13,7 @@ interface FeedListProps {
   onToggleFavorite: (item: RSSItem) => void;
 }
 
-const FeedList: React.FC<FeedListProps> = ({ items, onItemSelect, selectedItem, currentPage, itemsPerPage, onPageChange, generatingSummaries = false, onToggleFavorite }) => {
+const FeedList: React.FC<FeedListProps> = ({ items, onItemSelect, currentPage, itemsPerPage, onPageChange, generatingSummaries = false, onToggleFavorite }) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();

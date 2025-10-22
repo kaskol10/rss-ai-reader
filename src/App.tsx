@@ -65,7 +65,6 @@ function App() {
   const itemsPerPage = 10;
   const [summaryCache, setSummaryCache] = useState<Map<string, string>>(new Map());
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
-  const [savedArticles, setSavedArticles] = useState<RSSItem[]>([]);
   const [shortSummaryPrompt, setShortSummaryPrompt] = useState<string>('Summarize this article in exactly 20 words or less. Focus on the main point and key takeaway. Be concise and informative.');
   const [showMobileSettings, setShowMobileSettings] = useState(false);
 
@@ -124,7 +123,7 @@ function App() {
         setTimeout(() => {
           setGeneratingShortSummaries(true);
           
-          generateShortSummaries(feed.items, 1, 5).then(updatedItems => { // Only process 5 items for speed
+          generateShortSummaries(feed.items, 5).then(updatedItems => { // Only process 5 items for speed
             const updatedFeed = { ...feed, items: updatedItems };
             setFeed(updatedFeed);
             setGeneratingShortSummaries(false);
@@ -224,29 +223,11 @@ function App() {
           isFavorite: favoriteIds.has(item.guid || item.link)
         }));
         
-        // Update saved articles - only keep favorited items
-        setSavedArticles(prev => {
-          // Remove items that are no longer favorites
-          const stillFavorites = prev.filter(item => favoriteIds.has(item.guid || item.link));
-          
-          // Add new favorited items
-          const existingIds = new Set(stillFavorites.map(item => item.guid || item.link));
-          const newFavorites = itemsWithFavorites.filter((item: RSSItem) => 
-            favoriteIds.has(item.guid || item.link) && !existingIds.has(item.guid || item.link)
-          );
-          
-          return [...stillFavorites, ...newFavorites];
-        });
         
         const updatedFeedData = { ...feedData, items: itemsWithFavorites };
         console.log('Setting feed data for:', feedSource.name, 'with', itemsWithFavorites.length, 'items');
         setFeed(updatedFeedData);
         
-        // Update savedArticles state with current feed items for potential saving
-        if (feedSource.id !== 'saved') {
-          console.log('Updating savedArticles state with current feed items');
-          setSavedArticles(itemsWithFavorites);
-        }
         
         // Show the feed immediately - summaries will be generated in background
         console.log('Feed loaded and displayed immediately');
@@ -403,16 +384,6 @@ function App() {
       }
     }
 
-    // Update local state for immediate UI update
-    setSavedArticles(prev => {
-      if (isCurrentlyFavorite) {
-        // Removing from favorites
-        return prev.filter(savedItem => (savedItem.guid || savedItem.link) !== itemId);
-      } else {
-        // Adding to favorites
-        return [...prev, { ...item, isFavorite: true }];
-      }
-    });
   };
 
   const handleFeedAdd = (newFeed: FeedSource) => {
@@ -438,12 +409,6 @@ function App() {
     });
   };
 
-  const handleRefresh = () => {
-    if (currentFeed) {
-      // Bypass cache on manual refresh
-      loadFeed(currentFeed, true);
-    }
-  };
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
@@ -451,7 +416,7 @@ function App() {
   };
 
 
-  const generateShortSummaries = async (items: RSSItem[], page: number = 1, limit?: number) => {
+  const generateShortSummaries = async (items: RSSItem[], limit?: number) => {
     // Process only the first 5 items for speed, or limit if provided
     const maxItems = limit || 5;
     const itemsToProcess = items.slice(0, maxItems);
@@ -541,19 +506,6 @@ function App() {
     return newItems;
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return 'just now';
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    
-    return date.toLocaleDateString();
-  };
 
   // Show loading screen while initializing
   if (!isInitialized) {
@@ -569,7 +521,11 @@ function App() {
 
   return (
     <div className="min-h-screen bg-bg">
-      <Header />
+      <Header 
+        title={currentFeed?.name || 'RSS AI Reader'}
+        onRefresh={() => currentFeed && loadFeed(currentFeed, true)}
+        loading={loading}
+      />
       
       <div className="max-w-6xl mx-auto px-2 sm:px-4 py-2 sm:py-6">
         <PrivacyNotice />
@@ -612,7 +568,11 @@ function App() {
                 onRemovePrompt={handleRemovePrompt}
               />
               
-              <PrivacySettings />
+              <PrivacySettings 
+                feeds={feeds}
+                prompts={aiPrompts}
+                currentFeedId={currentFeed?.id || null}
+              />
             </div>
           </div>
 
@@ -623,7 +583,7 @@ function App() {
                 item={selectedItem}
                 onGenerateSummary={() => handleGenerateSummary(selectedItem)}
                 generatingSummary={generatingSummary}
-                currentPrompt={currentPrompt}
+                currentPrompt={currentPrompt!}
                 onToggleFavorite={handleToggleFavorite}
               />
             ) : loading ? (
@@ -669,7 +629,7 @@ function App() {
                       <button
                         onClick={() => {
                           setGeneratingShortSummaries(true);
-                          generateShortSummaries(feed.items, 1, 5).then(updatedItems => {
+                          generateShortSummaries(feed.items, 5).then(updatedItems => {
                             const updatedFeed = { ...feed, items: updatedItems };
                             setFeed(updatedFeed);
                             setGeneratingShortSummaries(false);
@@ -747,7 +707,11 @@ function App() {
               {/* Privacy Settings */}
               <div>
                 <h3 className="text-md font-semibold text-gray-900 mb-3">Privacy</h3>
-                <PrivacySettings />
+                <PrivacySettings 
+                  feeds={feeds}
+                  prompts={aiPrompts}
+                  currentFeedId={currentFeed?.id || null}
+                />
               </div>
             </div>
           </div>
