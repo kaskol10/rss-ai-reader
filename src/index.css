@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bg text-text font-sans;
+  }
+}
+
+@layer components {
+  .link {
+    @apply text-text hover:underline;
+  }
+  
+  .meta {
+    @apply text-text-muted text-sm;
+  }
+  
+  .item {
+    @apply py-3 border-b border-border last:border-b-0 hover:bg-hover transition-colors;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-secondary px-4 py-2 rounded hover:bg-gray-800 transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-primary border border-border px-4 py-2 rounded hover:bg-hover transition-colors;
+  }
+  
+  /* HTML content styling */
+  .prose {
+    @apply text-text;
+  }
+  
+  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    @apply text-primary font-semibold;
+  }
+  
+  .prose a {
+    @apply text-primary hover:underline;
+  }
+  
+  .prose p {
+    @apply mb-2;
+  }
+  
+  .prose ul, .prose ol {
+    @apply mb-2 pl-4;
+  }
+  
+  .prose li {
+    @apply mb-1;
+  }
+  
+  .prose code {
+    @apply bg-hover px-1 py-0.5 rounded text-xs font-mono;
+  }
+  
+  .prose pre {
+    @apply bg-hover p-2 rounded overflow-x-auto;
+  }
+  
+  .prose blockquote {
+    @apply border-l-4 border-border pl-4 italic;
+  }
+  
+  .prose img {
+    @apply max-w-full h-auto rounded;
+  }
+}

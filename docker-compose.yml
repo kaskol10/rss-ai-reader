@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  rss-ai-reader:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rss-ai.rule=Host(`rss-ai.yourdomain.com`)"
+      - "traefik.http.routers.rss-ai.tls=true"
+      - "traefik.http.routers.rss-ai.tls.certresolver=letsencrypt"

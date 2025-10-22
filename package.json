@@ -1,0 +1,51 @@
+{
+  "name": "rss-ai-reader",
+  "private": false,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Privacy-first RSS reader with AI-powered summaries. EU-compliant, self-hosted, and data sovereign.",
+  "keywords": ["rss", "ai", "privacy", "self-hosted", "eu-compliant", "gdpr", "data-sovereignty"],
+  "author": "RSS AI Reader Contributors",
+  "license": "MIT",
+  "homepage": "https://github.com/kaskol10/rss-ai-reader#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kaskol10/rss-ai-reader.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kaskol10/rss-ai-reader/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "clsx": "^2.0.0",
+    "fast-xml-parser": "^5.3.0",
+    "lucide-react": "^0.294.0",
+    "openai": "^4.20.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.55.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.3.6",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8"
+  }
+}
