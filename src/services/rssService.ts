@@ -66,9 +66,9 @@ export const fetchRSSFeed = async (url: string, useCache: boolean = true) => {
       }
     }
     
-    // Use Vite proxy to avoid CORS issues
-    const proxyUrl = `/rss-proxy?url=${encodeURIComponent(url)}`;
-    console.log('RSS Service: Using Vite proxy:', proxyUrl);
+    // Use AllOrigins CORS proxy
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    console.log('RSS Service: Using AllOrigins proxy:', proxyUrl);
     
     const response = await fetch(proxyUrl);
     
