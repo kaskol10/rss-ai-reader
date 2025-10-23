@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { RSSItem, RSSFeed, AIPrompt, FeedSource } from './types';
 import { fetchRSSFeed, fetchAllFeeds } from './services/rssService';
-import { generateSummary, generateShortSummary, defaultPrompts } from './services/aiService';
+import { generateSummary, defaultPrompts } from './services/aiService';
 import { fetchArticleContent } from './services/articleService';
 import { storageService } from './services/storageService';
+import { appStateCache } from './services/smartCache';
 import Header from './components/Header';
 import FeedList from './components/FeedList';
 import ArticleDetail from './components/ArticleDetail';
@@ -11,6 +12,7 @@ import PromptSelector from './components/PromptSelector';
 import FeedSelector from './components/FeedSelector';
 import PrivacyNotice from './components/PrivacyNotice';
 import PrivacySettings from './components/PrivacySettings';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const HACKER_NEWS_RSS_URL = 'https://news.ycombinator.com/rss';
 
@@ -60,10 +62,9 @@ function App() {
   const [generatingSummary, setGeneratingSummary] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState<{ current: number; total: number } | null>(null);
-  const [generatingShortSummaries, setGeneratingShortSummaries] = useState(false);
+  // Removed generatingShortSummaries - now handled by SummaryButton component
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  const [summaryCache, setSummaryCache] = useState<Map<string, string>>(new Map());
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [shortSummaryPrompt, setShortSummaryPrompt] = useState<string>('Summarize this article in exactly 20 words or less. Focus on the main point and key takeaway. Be concise and informative.');
   const [showMobileSettings, setShowMobileSettings] = useState(false);
@@ -98,44 +99,32 @@ function App() {
       : loadedFeeds[0];
     
     setCurrentFeed(feedToLoad);
+    
+    // Load cached app state info (for debugging/logging)
+    const cachedState = appStateCache.get('app-state');
+    if (cachedState) {
+      console.log('App: Found cached app state:', cachedState);
+    }
+    
     setIsInitialized(true);
   }, []);
 
   useEffect(() => {
     if (isInitialized && currentFeed) {
-      console.log('Loading feed:', currentFeed.name);
-      loadFeed(currentFeed);
+      // Only load feed if we don't have cached data for this feed
+      const cachedState = appStateCache.get('app-state');
+      if (!cachedState || cachedState.currentFeedId !== currentFeed.id) {
+        console.log('Loading feed:', currentFeed.name);
+        loadFeed(currentFeed);
+      } else {
+        console.log('Using cached feed data for:', currentFeed.name);
+      }
     }
   }, [currentFeed, isInitialized]);
 
-  // Generate summaries in background without blocking UI
-  useEffect(() => {
-    if (feed && feed.items && feed.items.length > 0) {
-      console.log('Feed loaded, starting background summary generation...');
-      
-      // Only generate summaries for items that don't have them yet
-      const itemsNeedingSummaries = feed.items.filter(item => !item.shortAiSummary);
-      
-      if (itemsNeedingSummaries.length > 0) {
-        console.log(`Found ${itemsNeedingSummaries.length} items needing summaries - generating in background`);
-        
-        // Generate summaries in background without blocking UI
-        setTimeout(() => {
-          setGeneratingShortSummaries(true);
-          
-          generateShortSummaries(feed.items, 5).then(updatedItems => { // Only process 5 items for speed
-            const updatedFeed = { ...feed, items: updatedItems };
-            setFeed(updatedFeed);
-            setGeneratingShortSummaries(false);
-            console.log('Background summaries completed');
-          }).catch(error => {
-            console.error('Error generating summaries:', error);
-            setGeneratingShortSummaries(false);
-          });
-        }, 500); // Reduced delay for faster start
-      }
-    }
-  }, [feed?.title]); // Only when feed changes, not page
+  // Removed generateSummaryForItem - now handled by SummaryService
+
+  // Removed handleGenerateSummaryForItem - now handled by SummaryButton component
 
   const loadFeed = async (feedSource: FeedSource, bypassCache: boolean = false) => {
     console.log('Starting to load feed:', feedSource.name);
@@ -228,6 +217,14 @@ function App() {
         console.log('Setting feed data for:', feedSource.name, 'with', itemsWithFavorites.length, 'items');
         setFeed(updatedFeedData);
         
+        // Cache the app state to prevent unnecessary reloading (store only essential data)
+        appStateCache.set('app-state', {
+          currentFeedId: feedSource.id,
+          feedTitle: updatedFeedData.title,
+          itemCount: updatedFeedData.items.length,
+          lastBuildDate: updatedFeedData.lastBuildDate,
+          timestamp: Date.now()
+        });
         
         // Show the feed immediately - summaries will be generated in background
         console.log('Feed loaded and displayed immediately');
@@ -416,95 +413,7 @@ function App() {
   };
 
 
-  const generateShortSummaries = async (items: RSSItem[], limit?: number) => {
-    // Process only the first 5 items for speed, or limit if provided
-    const maxItems = limit || 5;
-    const itemsToProcess = items.slice(0, maxItems);
-    
-    // Filter out items that already have short summaries
-    const itemsNeedingSummaries = itemsToProcess.filter(item => !item.shortAiSummary);
-    
-    if (itemsNeedingSummaries.length === 0) {
-      console.log(`App: All items already have short summaries`);
-      return items;
-    }
-    
-    console.log(`App: Generating short summaries for ${itemsNeedingSummaries.length} items (optimized for speed)`);
-    
-    // Process items in parallel batches for speed
-    const batchSize = 3;
-    const batches = [];
-    for (let i = 0; i < itemsNeedingSummaries.length; i += batchSize) {
-      batches.push(itemsNeedingSummaries.slice(i, i + batchSize));
-    }
-    
-    const newItems = [...items];
-    
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      const batch = batches[batchIndex];
-      console.log(`App: Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} items)`);
-      
-      // Process batch items in parallel
-      const batchPromises = batch.map(async (item) => {
-        try {
-          const cacheKey = `${item.link}-${item.title}`;
-          
-          // Check cache first
-          if (summaryCache.has(cacheKey)) {
-            return { ...item, shortAiSummary: summaryCache.get(cacheKey) };
-          }
-          
-          // For Hacker News, fetch the actual article content instead of using contentSnippet (comments)
-          let content = '';
-          if (item.sourceFeed === 'Hacker News' && item.link && !item.link.includes('news.ycombinator.com')) {
-            console.log(`App: Fetching article content for Hacker News: ${item.link}`);
-            try {
-              content = await fetchArticleContent(item.link);
-              console.log(`App: Successfully fetched content, length: ${content.length}`);
-            } catch (error) {
-              console.error(`App: Failed to fetch content:`, error);
-              content = item.contentSnippet || '';
-            }
-          } else {
-            // For other feeds, use contentSnippet for speed
-            content = item.contentSnippet || '';
-          }
-          
-          if (content && content.length > 30) { // Reduced minimum length for speed
-            const shortSummary = await generateShortSummary(content, shortSummaryPrompt);
-            
-            // Cache the summary
-            setSummaryCache(prev => new Map(prev).set(cacheKey, shortSummary));
-            
-            return { ...item, shortAiSummary: shortSummary };
-          }
-          
-          return item;
-        } catch (error) {
-          console.error(`App: Failed to generate summary for ${item.title}:`, error);
-          return item;
-        }
-      });
-      
-      // Wait for batch to complete
-      const batchResults = await Promise.all(batchPromises);
-      
-      // Update items in the array
-      batchResults.forEach(updatedItem => {
-        const originalIndex = items.findIndex(originalItem => originalItem.guid === updatedItem.guid);
-        if (originalIndex >= 0) {
-          newItems[originalIndex] = updatedItem;
-        }
-      });
-      
-      // Small delay between batches to keep UI responsive
-      if (batchIndex < batches.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-    
-    return newItems;
-  };
+  // Removed generateShortSummaries - now using on-demand generation for better performance
 
 
   // Show loading screen while initializing
@@ -520,12 +429,13 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-bg">
-      <Header 
-        title={currentFeed?.name || 'RSS AI Reader'}
-        onRefresh={() => currentFeed && loadFeed(currentFeed, true)}
-        loading={loading}
-      />
+    <ErrorBoundary>
+      <div className="min-h-screen bg-bg">
+        <Header 
+          title={currentFeed?.name || 'RSS AI Reader'}
+          onRefresh={() => currentFeed && loadFeed(currentFeed, true)}
+          loading={loading}
+        />
       
       <div className="max-w-6xl mx-auto px-2 sm:px-4 py-2 sm:py-6">
         <PrivacyNotice />
@@ -611,40 +521,9 @@ function App() {
               </div>
             ) : feed ? (
               <>
-                {generatingShortSummaries && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                      <span className="text-sm text-blue-700">Generating AI summaries...</span>
-                    </div>
-                  </div>
-                )}
+                {/* Removed generatingShortSummaries - now handled by individual SummaryButton components */}
                 
-                {!generatingShortSummaries && feed && feed.items.some(item => !item.shortAiSummary) && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">
-                        {feed.items.filter(item => !item.shortAiSummary).length} items without summaries
-                      </span>
-                      <button
-                        onClick={() => {
-                          setGeneratingShortSummaries(true);
-                          generateShortSummaries(feed.items, 5).then(updatedItems => {
-                            const updatedFeed = { ...feed, items: updatedItems };
-                            setFeed(updatedFeed);
-                            setGeneratingShortSummaries(false);
-                          }).catch(error => {
-                            console.error('Error generating summaries:', error);
-                            setGeneratingShortSummaries(false);
-                          });
-                        }}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
-                      >
-                        Load More
-                      </button>
-                    </div>
-                  </div>
-                )}
+                {/* Removed bulk summary generation - now using on-demand generation for better performance */}
                 
                 <FeedList
                   items={feed.items}
@@ -653,8 +532,18 @@ function App() {
                   currentPage={currentPage}
                   itemsPerPage={itemsPerPage}
                   onPageChange={handlePageChange}
-                  generatingSummaries={generatingShortSummaries}
                   onToggleFavorite={handleToggleFavorite}
+                  onSummaryGenerated={(updatedItem) => {
+                    const updatedItems = feed.items.map(item => 
+                      item.guid === updatedItem.guid || item.link === updatedItem.link ? updatedItem : item
+                    );
+                    setFeed({ ...feed, items: updatedItems });
+                  }}
+                  onSummaryError={(error) => {
+                    console.error('Summary generation failed:', error);
+                    // You could show a toast notification here
+                  }}
+                  summaryPrompt={shortSummaryPrompt}
                 />
               </>
             ) : null}
@@ -731,6 +620,7 @@ function App() {
         </button>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }
 

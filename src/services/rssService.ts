@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import { feedCache } from './cacheService';
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -45,25 +46,14 @@ const extractTextContent = (obj: any): string => {
   return '';
 };
 
-// Cache for RSS feeds (single and combined)
-const feedCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
-
 export const fetchRSSFeed = async (url: string, useCache: boolean = true) => {
   try {
     console.log('RSS Service: Starting to parse URL:', url);
     
     // Check cache first
     if (useCache && feedCache.has(url)) {
-      const cached = feedCache.get(url)!;
-      const now = Date.now();
-      if (now - cached.timestamp < CACHE_DURATION) {
-        console.log('RSS Service: Using cached data for:', url);
-        return cached.data;
-      } else {
-        console.log('RSS Service: Cache expired for:', url);
-        feedCache.delete(url);
-      }
+      console.log('RSS Service: Using cached data for:', url);
+      return feedCache.get(url);
     }
     
     // Use AllOrigins CORS proxy
@@ -252,7 +242,7 @@ export const fetchRSSFeed = async (url: string, useCache: boolean = true) => {
     
     // Cache the result
     if (useCache) {
-      feedCache.set(url, { data: processedFeed, timestamp: Date.now() });
+      feedCache.set(url, processedFeed);
       console.log('RSS Service: Cached feed data for:', url);
     }
     
@@ -278,15 +268,8 @@ export const fetchAllFeeds = async (feedUrls: string[], timeout: number = 10000,
 
     // Try cache first
     if (useCache && feedCache.has(cacheKey)) {
-      const cached = feedCache.get(cacheKey)!;
-      const now = Date.now();
-      if (now - cached.timestamp < CACHE_DURATION) {
-        console.log('RSS Service: Using cached combined feed');
-        return cached.data;
-      } else {
-        console.log('RSS Service: Combined cache expired');
-        feedCache.delete(cacheKey);
-      }
+      console.log('RSS Service: Using cached combined feed');
+      return feedCache.get(cacheKey);
     }
     
     // Add timeout wrapper for each feed
@@ -362,13 +345,13 @@ export const fetchAllFeeds = async (feedUrls: string[], timeout: number = 10000,
     };
     
     console.log('RSS Service: Combined feed created successfully');
-
+    
     // Cache combined result
     if (useCache) {
-      feedCache.set(cacheKey, { data: combinedFeed, timestamp: Date.now() });
+      feedCache.set(cacheKey, combinedFeed);
       console.log('RSS Service: Cached combined feed');
     }
-
+    
     return combinedFeed;
   } catch (error) {
     console.error('RSS Service: Error fetching all feeds:', error);

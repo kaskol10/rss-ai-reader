@@ -1,4 +1,5 @@
 // Service to fetch and extract preview content from URLs
+import { previewCache } from './cacheService';
 
 export interface PreviewContent {
   title: string;
@@ -8,30 +9,19 @@ export interface PreviewContent {
   domain: string;
 }
 
-// Cache for preview content
-const previewCache = new Map<string, { data: PreviewContent; timestamp: number }>();
-const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
-
 export const fetchPreviewContent = async (url: string): Promise<PreviewContent> => {
   try {
     console.log('Preview Service: Fetching preview content for URL:', url);
 
     // Check cache first
     if (previewCache.has(url)) {
-      const cached = previewCache.get(url)!;
-      const now = Date.now();
-      if (now - cached.timestamp < CACHE_DURATION) {
-        console.log('Preview Service: Using cached preview data for:', url);
-        return cached.data;
-      } else {
-        console.log('Preview Service: Cache expired for:', url);
-        previewCache.delete(url);
-      }
+      console.log('Preview Service: Using cached preview data for:', url);
+      return previewCache.get(url);
     }
 
-    // Use Vite proxy to avoid CORS issues
-    const proxyUrl = `/rss-proxy?url=${encodeURIComponent(url)}`;
-    console.log('Preview Service: Using Vite proxy:', proxyUrl);
+    // Use AllOrigins CORS proxy to avoid CORS issues
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    console.log('Preview Service: Using AllOrigins proxy:', proxyUrl);
 
     const response = await fetch(proxyUrl);
 
@@ -47,7 +37,7 @@ export const fetchPreviewContent = async (url: string): Promise<PreviewContent> 
     console.log('Preview Service: Preview content extracted:', preview);
 
     // Cache the result
-    previewCache.set(url, { data: preview, timestamp: Date.now() });
+    previewCache.set(url, preview);
     console.log('Preview Service: Cached preview data for:', url);
 
     return preview;
@@ -147,11 +137,4 @@ const extractPreviewFromHTML = (html: string, url: string): PreviewContent => {
 };
 
 // Clear expired cache entries
-export const clearExpiredCache = () => {
-  const now = Date.now();
-  for (const [url, cached] of previewCache.entries()) {
-    if (now - cached.timestamp > CACHE_DURATION) {
-      previewCache.delete(url);
-    }
-  }
-};
+// Cache clearing is now handled by the PersistentCache class

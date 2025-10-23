@@ -1,6 +1,7 @@
 import React from 'react';
 import { RSSItem } from '../types';
 import { sanitizeHTML } from '../utils/htmlSanitizer';
+import { SummaryButton } from './SummaryButton';
 
 interface FeedListProps {
   items: RSSItem[];
@@ -9,11 +10,23 @@ interface FeedListProps {
   currentPage: number;
   itemsPerPage: number;
   onPageChange: (page: number) => void;
-  generatingSummaries?: boolean;
   onToggleFavorite: (item: RSSItem) => void;
+  onSummaryGenerated: (updatedItem: RSSItem) => void;
+  onSummaryError?: (error: string) => void;
+  summaryPrompt: string;
 }
 
-const FeedList: React.FC<FeedListProps> = ({ items, onItemSelect, currentPage, itemsPerPage, onPageChange, generatingSummaries = false, onToggleFavorite }) => {
+const FeedList: React.FC<FeedListProps> = ({ 
+  items, 
+  onItemSelect, 
+  currentPage, 
+  itemsPerPage, 
+  onPageChange, 
+  onToggleFavorite, 
+  onSummaryGenerated,
+  onSummaryError,
+  summaryPrompt 
+}) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -102,14 +115,14 @@ const FeedList: React.FC<FeedListProps> = ({ items, onItemSelect, currentPage, i
                     </p>
                   </div>
                 </div>
-              ) : generatingSummaries ? (
+              ) : !item.shortAiSummary ? (
                 <div className="mt-2">
-                  <div className="flex items-start space-x-2">
-                    <div className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin flex-shrink-0 mt-0.5"></div>
-                    <p className="text-xs text-text-muted italic">
-                      Generating AI summary...
-                    </p>
-                  </div>
+                  <SummaryButton
+                    item={item}
+                    prompt={summaryPrompt}
+                    onSummaryGenerated={onSummaryGenerated}
+                    onError={onSummaryError}
+                  />
                 </div>
               ) : item.contentSnippet ? (
                 <div 
