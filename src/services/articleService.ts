@@ -4,9 +4,9 @@ export const fetchArticleContent = async (url: string): Promise<string> => {
   try {
     console.log('Article Service: Fetching content from URL:', url);
     
-    // Use Vite proxy to avoid CORS issues
-    const proxyUrl = `/rss-proxy?url=${encodeURIComponent(url)}`;
-    console.log('Article Service: Using Vite proxy:', proxyUrl);
+    // Use AllOrigins CORS proxy to avoid CORS issues
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    console.log('Article Service: Using AllOrigins proxy:', proxyUrl);
     
     const response = await fetch(proxyUrl);
     
