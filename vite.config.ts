@@ -13,7 +13,12 @@ export default defineConfig({
   preview: {
     port: 3000,
     host: '0.0.0.0', // Allow external connections for preview mode
-    strictPort: true
+    strictPort: true,
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      '.resiz.es' // Allow all resiz.es subdomains
+    ]
   },
   build: {
     outDir: 'dist',
