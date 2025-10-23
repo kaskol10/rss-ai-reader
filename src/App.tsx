@@ -13,6 +13,12 @@ import FeedSelector from './components/FeedSelector';
 import PrivacyNotice from './components/PrivacyNotice';
 import PrivacySettings from './components/PrivacySettings';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ToastProvider, useToast } from './contexts/ToastContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { SkeletonFeedList } from './components/Skeleton';
+import { SearchBar } from './components/SearchBar';
+import { ThemeToggle } from './components/ThemeToggle';
+import { useRSSReaderShortcuts } from './hooks/useKeyboardShortcuts';
 
 const HACKER_NEWS_RSS_URL = 'https://news.ycombinator.com/rss';
 
@@ -50,7 +56,8 @@ const defaultFeeds: FeedSource[] = [
   }
 ];
 
-function App() {
+const AppContent: React.FC = () => {
+  const { showSuccess, showError } = useToast();
   const [feeds, setFeeds] = useState<FeedSource[]>([]);
   const [currentFeed, setCurrentFeed] = useState<FeedSource | null>(null);
   const [feed, setFeed] = useState<RSSFeed | null>(null);
@@ -68,6 +75,8 @@ function App() {
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [shortSummaryPrompt, setShortSummaryPrompt] = useState<string>('Summarize this article in exactly 20 words or less. Focus on the main point and key takeaway. Be concise and informative.');
   const [showMobileSettings, setShowMobileSettings] = useState(false);
+  const [filteredItems, setFilteredItems] = useState<RSSItem[]>([]);
+  // Removed searchFocused - not used in current implementation
 
   // Initialize app with data from localStorage
   useEffect(() => {
@@ -122,9 +131,41 @@ function App() {
     }
   }, [currentFeed, isInitialized]);
 
-  // Removed generateSummaryForItem - now handled by SummaryService
+  // Keyboard shortcuts
+  useRSSReaderShortcuts({
+    onRefresh: () => currentFeed && loadFeed(currentFeed, true),
+    onNextItem: () => {
+      if (feed && selectedItem) {
+        const currentIndex = feed.items.findIndex(item => item.guid === selectedItem.guid);
+        if (currentIndex < feed.items.length - 1) {
+          handleItemSelect(feed.items[currentIndex + 1]);
+        }
+      }
+    },
+    onPrevItem: () => {
+      if (feed && selectedItem) {
+        const currentIndex = feed.items.findIndex(item => item.guid === selectedItem.guid);
+        if (currentIndex > 0) {
+          handleItemSelect(feed.items[currentIndex - 1]);
+        }
+      }
+    },
+    onToggleFavorite: () => selectedItem && handleToggleFavorite(selectedItem),
+    onSearch: () => {
+      // Focus search input when / is pressed
+      const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
+      if (searchInput) {
+        searchInput.focus();
+      }
+    },
+  });
 
-  // Removed handleGenerateSummaryForItem - now handled by SummaryButton component
+  // Update filtered items when feed changes
+  useEffect(() => {
+    if (feed) {
+      setFilteredItems(feed.items);
+    }
+  }, [feed]);
 
   const loadFeed = async (feedSource: FeedSource, bypassCache: boolean = false) => {
     console.log('Starting to load feed:', feedSource.name);
@@ -216,6 +257,7 @@ function App() {
         const updatedFeedData = { ...feedData, items: itemsWithFavorites };
         console.log('Setting feed data for:', feedSource.name, 'with', itemsWithFavorites.length, 'items');
         setFeed(updatedFeedData);
+        showSuccess('Feed loaded!', `Loaded ${updatedFeedData.items.length} articles from ${feedSource.name}`);
         
         // Cache the app state to prevent unnecessary reloading (store only essential data)
         appStateCache.set('app-state', {
@@ -232,10 +274,13 @@ function App() {
       console.error('Error loading feed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load feed';
       setError(errorMessage);
+      showError('Failed to load feed', errorMessage);
       
       // If it's a timeout error, provide more helpful message
       if (errorMessage.includes('Timeout')) {
-        setError('Feed loading timed out. Some feeds may be slow to respond. Try refreshing or check your internet connection.');
+        const timeoutMessage = 'Feed loading timed out. Some feeds may be slow to respond. Try refreshing or check your internet connection.';
+        setError(timeoutMessage);
+        showError('Timeout', timeoutMessage);
       }
     } finally {
       setLoading(false);
@@ -438,6 +483,29 @@ function App() {
         />
       
       <div className="max-w-6xl mx-auto px-2 sm:px-4 py-2 sm:py-6">
+        {/* Search and Theme Controls */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="flex-1 max-w-md">
+            {feed && feed.items.length > 0 && (
+              <SearchBar
+                items={feed.items}
+                onFilteredItems={setFilteredItems}
+                placeholder="Search articles..."
+              />
+            )}
+          </div>
+          <div className="flex items-center space-x-2">
+            <ThemeToggle />
+            <button
+              onClick={() => setShowMobileSettings(!showMobileSettings)}
+              className="sm:hidden p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.722-1.756 3.35 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" />
+              </svg>
+            </button>
+          </div>
+        </div>
         <PrivacyNotice />
         
         {error && (
@@ -521,30 +589,34 @@ function App() {
               </div>
             ) : feed ? (
               <>
-                {/* Removed generatingShortSummaries - now handled by individual SummaryButton components */}
-                
-                {/* Removed bulk summary generation - now using on-demand generation for better performance */}
-                
-                <FeedList
-                  items={feed.items}
-                  onItemSelect={handleItemSelect}
-                  selectedItem={selectedItem}
-                  currentPage={currentPage}
-                  itemsPerPage={itemsPerPage}
-                  onPageChange={handlePageChange}
-                  onToggleFavorite={handleToggleFavorite}
-                  onSummaryGenerated={(updatedItem) => {
-                    const updatedItems = feed.items.map(item => 
-                      item.guid === updatedItem.guid || item.link === updatedItem.link ? updatedItem : item
-                    );
-                    setFeed({ ...feed, items: updatedItems });
-                  }}
-                  onSummaryError={(error) => {
-                    console.error('Summary generation failed:', error);
-                    // You could show a toast notification here
-                  }}
-                  summaryPrompt={shortSummaryPrompt}
-                />
+                {/* Show skeleton loading while processing */}
+                {loading ? (
+                  <SkeletonFeedList count={5} />
+                ) : (
+                  <>
+                    <FeedList
+                      items={filteredItems}
+                      onItemSelect={handleItemSelect}
+                      selectedItem={selectedItem}
+                      currentPage={currentPage}
+                      itemsPerPage={itemsPerPage}
+                      onPageChange={handlePageChange}
+                      onToggleFavorite={handleToggleFavorite}
+                      onSummaryGenerated={(updatedItem) => {
+                        const updatedItems = feed.items.map(item => 
+                          item.guid === updatedItem.guid || item.link === updatedItem.link ? updatedItem : item
+                        );
+                        setFeed({ ...feed, items: updatedItems });
+                        showSuccess('Summary generated!', 'AI summary has been added to the article');
+                      }}
+                      onSummaryError={(error) => {
+                        console.error('Summary generation failed:', error);
+                        showError('Summary failed', error);
+                      }}
+                      summaryPrompt={shortSummaryPrompt}
+                    />
+                  </>
+                )}
               </>
             ) : null}
           </div>
@@ -621,6 +693,16 @@ function App() {
       </div>
     </div>
     </ErrorBoundary>
+  );
+};
+
+function App() {
+  return (
+    <ThemeProvider>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </ThemeProvider>
   );
 }
 
