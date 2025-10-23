@@ -7,7 +7,13 @@ export default defineConfig({
   base: '/', // Ensure base path is correct for deployment
   server: {
     port: 3000,
-    host: '0.0.0.0' // Allow external connections
+    host: '0.0.0.0', // Allow external connections
+    strictPort: true
+  },
+  preview: {
+    port: 3000,
+    host: '0.0.0.0', // Allow external connections for preview mode
+    strictPort: true
   },
   build: {
     outDir: 'dist',
